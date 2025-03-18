@@ -10,7 +10,8 @@ def create_events_aggregated_sink(t_env):
             PULocationID INT,
             DOLocationID INT,
             streak_len BIGINT,
-            PRIMARY KEY (PULocationID, DOLocationID) NOT ENFORCED
+            session_start TIMESTAMP(3),
+            PRIMARY KEY (PULocationID, DOLocationID, session_start) NOT ENFORCED
         ) WITH (
             'connector' = 'jdbc',
             'url' = 'jdbc:postgresql://postgres:5432/postgres',
@@ -39,10 +40,12 @@ def create_events_source_kafka(t_env):
         ) WITH (
             'connector' = 'kafka',
             'properties.bootstrap.servers' = 'redpanda-1:29092',
-            'topic' = 'test-topic',
+            'topic' = 'green-data-2',
             'scan.startup.mode' = 'earliest-offset',
             'properties.auto.offset.reset' = 'earliest',
-            'format' = 'json'
+            'format' = 'json',
+	    'json.ignore-parse-errors' = 'true',
+	    'json.fail-on-missing-field' = 'false'
         );
         """
     t_env.execute_sql(source_ddl)
@@ -79,7 +82,8 @@ def log_aggregation():
         SELECT
             PULocationID,
             DOLocationID,
-            COUNT(*) AS streak_len
+            COUNT(*) AS streak_len,
+            MIN(event_watermark) AS session_start
         FROM {source_table}
         GROUP BY PULocationID, DOLocationID, SESSION(event_watermark, INTERVAL '5' MINUTE);
         
